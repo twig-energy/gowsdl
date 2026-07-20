@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,7 +49,7 @@ type AttachmentRequest struct {
 }
 
 func TestClient_Call(t *testing.T) {
-	var pingRequest = new(Ping)
+	pingRequest := new(Ping)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		xml.NewDecoder(r.Body).Decode(pingRequest)
 		rsp := `<?xml version="1.0" encoding="utf-8"?>
@@ -138,7 +138,7 @@ func TestClient_Attachments_WithAttachmentResponse(t *testing.T) {
 		for k, v := range r.Header {
 			w.Header().Set(k, v[0])
 		}
-		bodyBuf, _ := ioutil.ReadAll(r.Body)
+		bodyBuf, _ := io.ReadAll(r.Body)
 		_, err := w.Write(bodyBuf)
 		if err != nil {
 			panic(err)
@@ -183,7 +183,7 @@ func TestClient_MTOM(t *testing.T) {
 		for k, v := range r.Header {
 			w.Header().Set(k, v[0])
 		}
-		bodyBuf, _ := ioutil.ReadAll(r.Body)
+		bodyBuf, _ := io.ReadAll(r.Body)
 		w.Write(bodyBuf)
 	}))
 	defer ts.Close()
@@ -212,7 +212,7 @@ type SimpleNode struct {
 
 func (s SimpleNode) ErrorString() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%.2f: %s", s.Num, s.Detail))
+	fmt.Fprintf(&sb, "%.2f: %s", s.Num, s.Detail)
 	if s.Nested != nil {
 		sb.WriteString("\n" + s.Nested.ErrorString())
 	}
@@ -324,7 +324,7 @@ func Test_Client_FaultDefault(t *testing.T) {
 				t.Fatalf("Failed to encode input as XML: %v", err)
 			}
 
-			var pingRequest = new(Ping)
+			pingRequest := new(Ping)
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				xml.NewDecoder(r.Body).Decode(pingRequest)
 				rsp := fmt.Sprintf(`
@@ -850,5 +850,4 @@ func TestHTTPError(t *testing.T) {
 			}
 		})
 	}
-
 }

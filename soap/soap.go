@@ -7,7 +7,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"time"
@@ -176,9 +175,9 @@ func (f *SOAPFault) Error() string {
 
 // HTTPError is returned whenever the HTTP request to the server fails
 type HTTPError struct {
-	//StatusCode is the status code returned in the HTTP response
+	// StatusCode is the status code returned in the HTTP response
 	StatusCode int
-	//ResponseBody contains the body returned in the HTTP response
+	// ResponseBody contains the body returned in the HTTP response
 	ResponseBody []byte
 }
 
@@ -196,7 +195,7 @@ const (
 )
 
 type WSSSecurityHeader struct {
-	XMLName   xml.Name `xml:"http://schemas.xmlsoap.org/soap/envelope/ wsse:Security"`
+	XMLName   xml.Name `xml:"wsse:Security"`
 	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
 
 	MustUnderstand string `xml:"mustUnderstand,attr,omitempty"`
@@ -205,9 +204,8 @@ type WSSSecurityHeader struct {
 }
 
 type WSSUsernameToken struct {
-	XMLName   xml.Name `xml:"wsse:UsernameToken"`
-	XmlNSWsu  string   `xml:"xmlns:wsu,attr"`
-	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
+	XMLName  xml.Name `xml:"wsse:UsernameToken"`
+	XmlNSWsu string   `xml:"xmlns:wsu,attr"`
 
 	Id string `xml:"wsu:Id,attr,omitempty"`
 
@@ -216,15 +214,13 @@ type WSSUsernameToken struct {
 }
 
 type WSSUsername struct {
-	XMLName   xml.Name `xml:"wsse:Username"`
-	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
+	XMLName xml.Name `xml:"wsse:Username"`
 
 	Data string `xml:",chardata"`
 }
 
 type WSSPassword struct {
 	XMLName   xml.Name `xml:"wsse:Password"`
-	XmlNSWsse string   `xml:"xmlns:wsse,attr"`
 	XmlNSType string   `xml:"Type,attr"`
 
 	Data string `xml:",chardata"`
@@ -233,9 +229,9 @@ type WSSPassword struct {
 // NewWSSSecurityHeader creates WSSSecurityHeader instance
 func NewWSSSecurityHeader(user, pass, tokenID, mustUnderstand string) *WSSSecurityHeader {
 	hdr := &WSSSecurityHeader{XmlNSWsse: WssNsWSSE, MustUnderstand: mustUnderstand}
-	hdr.Token = &WSSUsernameToken{XmlNSWsu: WssNsWSU, XmlNSWsse: WssNsWSSE, Id: tokenID}
-	hdr.Token.Username = &WSSUsername{XmlNSWsse: WssNsWSSE, Data: user}
-	hdr.Token.Password = &WSSPassword{XmlNSWsse: WssNsWSSE, XmlNSType: WssNsType, Data: pass}
+	hdr.Token = &WSSUsernameToken{XmlNSWsu: WssNsWSU, Id: tokenID}
+	hdr.Token.Username = &WSSUsername{Data: user}
+	hdr.Token.Password = &WSSPassword{XmlNSType: WssNsType, Data: pass}
 	return hdr
 }
 
@@ -405,7 +401,8 @@ func (s *Client) Call(soapAction string, request, response interface{}) error {
 // Note that if SOAP fault is returned, it will be stored in the error.
 // On top the attachments array will be filled with attachments returned from the SOAP request.
 func (s *Client) CallContextWithAttachmentsAndFaultDetail(ctx context.Context, soapAction string, request,
-	response interface{}, faultDetail FaultError, attachments *[]MIMEMultipartAttachment) error {
+	response interface{}, faultDetail FaultError, attachments *[]MIMEMultipartAttachment,
+) error {
 	return s.call(ctx, soapAction, request, response, faultDetail, attachments)
 }
 
@@ -424,13 +421,14 @@ func (s *Client) CallWithFaultDetail(soapAction string, request, response interf
 }
 
 func (s *Client) call(ctx context.Context, soapAction string, request, response interface{}, faultDetail FaultError,
-	retAttachments *[]MIMEMultipartAttachment) error {
+	retAttachments *[]MIMEMultipartAttachment,
+) error {
 	// SOAP envelope capable of namespace prefixes
 	envelope := SOAPEnvelope{
 		XmlNS: XmlNsSoapEnv,
 	}
 
-	if s.headers != nil && len(s.headers) > 0 {
+	if len(s.headers) > 0 {
 		envelope.Header = &SOAPHeader{
 			Headers: s.headers,
 		}
@@ -503,7 +501,7 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 	defer res.Body.Close()
 
 	if res.StatusCode >= 400 && res.StatusCode != 500 {
-		body, _ := ioutil.ReadAll(res.Body)
+		body, _ := io.ReadAll(res.Body)
 		return &HTTPError{
 			StatusCode:   res.StatusCode,
 			ResponseBody: body,
@@ -526,7 +524,7 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 	}
 
 	var mmaBoundary string
-	if s.opts.mma{
+	if s.opts.mma {
 		mmaBoundary, err = getMmaHeader(res.Header.Get("Content-Type"))
 		if err != nil {
 			return err

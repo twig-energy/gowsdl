@@ -22,7 +22,9 @@ type SOAPDecoder interface {
 }
 
 type SOAPEnvelopeResponse struct {
-	XMLName     xml.Name `xml:"http://schemas.xmlsoap.org/soap/envelope/ Envelope"`
+	XMLName xml.Name `xml:"Envelope"`
+	XmlNS   string   `xml:"xmlns:soap,attr"`
+
 	Header      *SOAPHeaderResponse
 	Body        SOAPBodyResponse
 	Attachments []MIMEMultipartAttachment `xml:"attachments,omitempty"`
@@ -192,6 +194,7 @@ const (
 	WssNsType       string = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"
 	mtomContentType string = `multipart/related; start-info="application/soap+xml"; type="application/xop+xml"; boundary="%s"`
 	XmlNsSoapEnv    string = "http://schemas.xmlsoap.org/soap/envelope/"
+	XmlNsSoap1_2Env string = "http://www.w3.org/2003/05/soap-envelope"
 )
 
 type WSSSecurityHeader struct {
@@ -250,6 +253,7 @@ type options struct {
 	httpHeaders      map[string]string
 	mtom             bool
 	mma              bool
+	soapv1_2         bool
 }
 
 var defaultOptions = options{
@@ -328,6 +332,12 @@ func WithMTOM() Option {
 func WithMIMEMultipartAttachments() Option {
 	return func(o *options) {
 		o.mma = true
+	}
+}
+
+func WithSOAPV1_2() Option {
+	return func(o *options) {
+		o.soapv1_2 = true
 	}
 }
 
@@ -423,9 +433,13 @@ func (s *Client) CallWithFaultDetail(soapAction string, request, response interf
 func (s *Client) call(ctx context.Context, soapAction string, request, response interface{}, faultDetail FaultError,
 	retAttachments *[]MIMEMultipartAttachment,
 ) error {
-	// SOAP envelope capable of namespace prefixes
+	// SOAP envelope capable of soapNamespace prefixes
+	soapNamespace := XmlNsSoapEnv
+	if s.opts.soapv1_2 {
+		soapNamespace = XmlNsSoap1_2Env
+	}
 	envelope := SOAPEnvelope{
-		XmlNS: XmlNsSoapEnv,
+		XmlNS: soapNamespace,
 	}
 
 	if len(s.headers) > 0 {
@@ -510,7 +524,12 @@ func (s *Client) call(ctx context.Context, soapAction string, request, response 
 
 	// xml Decoder (used with and without MTOM) cannot handle namespace prefixes (yet),
 	// so we have to use a namespace-less response envelope
+	soapResponseNamespace := XmlNsSoapEnv
+	if s.opts.soapv1_2 {
+		soapResponseNamespace = XmlNsSoap1_2Env
+	}
 	respEnvelope := new(SOAPEnvelopeResponse)
+	respEnvelope.XmlNS = soapResponseNamespace
 	respEnvelope.Body = SOAPBodyResponse{
 		Content: response,
 		Fault: &SOAPFault{
